@@ -38,17 +38,20 @@ if source_type == "Image File":
         # Run inference frame snapshot
         results = model.predict(frame, conf=conf_threshold, verbose=False)
         
-        # Manually parse boxes to display custom names for images as well
+        # Manually parse boxes to display custom names for images
         if len(results[0].boxes) > 0:
             boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
             confidences = results[0].boxes.conf.cpu().numpy()
             
             for box, conf in zip(boxes, confidences):
                 cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), (255, 0, 0), 2)
-                custom_label = f"Blacktip Reef Shark {conf:.2f}"
-                (text_w, text_h), _ = cv2.getTextSize(custom_label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                
+                # FIXED: Updated string structure exactly as requested
+                custom_label = f"Blacktip Reef Shark Confidence Score : {int(conf * 100)}%"
+                
+                (text_w, text_h), _ = cv2.getTextSize(custom_label, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
                 cv2.rectangle(frame, (box[0], box[1] - text_h - 10), (box[0] + text_w + 10, box[1]), (255, 0, 0), -1)
-                cv2.putText(frame, custom_label, (box[0] + 5, box[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                cv2.putText(frame, custom_label, (box[0] + 5, box[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
         
         # Display the live prediction snapshot to the user interface
         st.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), caption="AI Inference Evaluation Output", use_container_width=True)
@@ -84,27 +87,26 @@ elif source_type == "Video File":
             
             sharks_in_this_frame = 0
             if results[0].boxes.id is not None:
-                # Extracted tracking metrics directly from the model object tensors
+                # Extracted metrics directly from the model object tensors
                 boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
-                ids = results[0].boxes.id.cpu().numpy().astype(int)
                 confidences = results[0].boxes.conf.cpu().numpy()
                 
-                sharks_in_this_frame = len(ids)
+                sharks_in_this_frame = len(boxes)
                 
-                # HIJACK LAYER: Loop through each detection to override the label strings manually
-                for box, obj_id, conf in zip(boxes, ids, confidences):
+                # Loop through each detection to override the label strings manually
+                for box, conf in zip(boxes, confidences):
                     # Draw neon bounding box frame
                     cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), (255, 0, 0), 2)
                     
-                    # RENAME STRING: Overwrote 'elasmobranch' with your precise asset designation
-                    custom_label = f"id:{obj_id} Blacktip Reef Shark {conf:.2f}"
+                    # FIXED: Updated string structure exactly as requested
+                    custom_label = f"Blacktip Reef Shark Confidence Score : {int(conf * 100)}%"
                     
-                    # Draw a solid text background banner so reflection/bubbles don't make it unreadable
-                    (text_w, text_h), _ = cv2.getTextSize(custom_label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                    # Draw solid text background banner (Slightly adjusted text scale so the longer label fits perfectly)
+                    (text_w, text_h), _ = cv2.getTextSize(custom_label, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
                     cv2.rectangle(frame, (box[0], box[1] - text_h - 10), (box[0] + text_w + 10, box[1]), (255, 0, 0), -1)
                     
                     # Print custom white metadata text onto the solid block background
-                    cv2.putText(frame, custom_label, (box[0] + 5, box[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                    cv2.putText(frame, custom_label, (box[0] + 5, box[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
                     
             if sharks_in_this_frame > maxn_value:
                 maxn_value = sharks_in_this_frame
