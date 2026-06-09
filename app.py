@@ -34,6 +34,7 @@ if source_type == "Image File":
         st.success(f"Detections complete! Total spotted in image: {len(results[0].boxes)}")
 
 # --- VIDEO HANDLER (SMOOTH BUFFERED PLAYBACK OPTIMIZATION) ---
+
 elif source_type == "Video File":
     uploaded_video = st.file_uploader("Choose a video file tracking target...", type=["mp4", "avi", "mov", "webm"])
     
@@ -43,8 +44,8 @@ elif source_type == "Video File":
         tfile.write(uploaded_video.read())
         tfile.close()
         
-        # Build an intermediate tracking draft output path
-        output_path = os.path.join(tempfile.gettempdir(), "processed_output.mp4")
+        # FIXED: Using .avi container format to bypass server-side codec limits
+        output_path = os.path.join(tempfile.gettempdir(), "processed_output.avi")
         
         cap = cv2.VideoCapture(tfile.name)
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -52,8 +53,8 @@ elif source_type == "Video File":
         fps = cap.get(cv2.CAP_PROP_FPS)
         fps = fps if fps > 0 else 30
         
-        # Use standard MP4V container compiler for the fast backend generation pass
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        # FIXED: Using XVID with an .avi wrapper provides universal web compatibility inside Streamlit's data component
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
         out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
         
         # 2. Display a nice loading spinner while the AI processes frames in the background
@@ -98,10 +99,10 @@ elif source_type == "Video File":
         # 3. Stream natively using Streamlit's web player engine container
         st.success(f"🎬 Analysis complete! Overall Peak Video MaxN Score: {maxn_value}")
         
-        # Load and play the tracked video file all at once
+        # FIXED: Pass explicitly as a generic video binary stream block to force Chrome compatibility
         with open(output_path, 'rb') as video_file:
             video_bytes = video_file.read()
-            st.video(video_bytes)
+            st.video(video_bytes, format="video/avi")
             
         # Clean up backend file memory allocations safely
         try:
