@@ -85,8 +85,8 @@ elif source_type == "Video File":
                 maxn_value = sharks_in_this_frame
                 
             # Overlay UI text tracks onto array output frame block before display
-            cv2.putText(frame, f'Active Counter: {sharks_in_this_frame}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-            cv2.putText(frame, f'Peak MaxN: {maxn_value}', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            cv2.putText(frame, f'Active Counter: {sharks_in_this_frame}', (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 0), 3)
+            cv2.putText(frame, f'Peak MaxN: {maxn_value}', (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
             
             # Keep sending the fresh processed frame array right to your web layout
             frame_placeholder.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
