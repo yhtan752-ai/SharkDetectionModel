@@ -38,11 +38,20 @@ if source_type == "Image File":
         # Run inference frame snapshot
         results = model.predict(frame, conf=conf_threshold, verbose=False)
         
-        # Render boundary boxes natively on image array copy
-        annotated_frame = results[0].plot()
+        # Manually parse boxes to display custom names for images as well
+        if len(results[0].boxes) > 0:
+            boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
+            confidences = results[0].boxes.conf.cpu().numpy()
+            
+            for box, conf in zip(boxes, confidences):
+                cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), (255, 0, 0), 2)
+                custom_label = f"Blacktip Reef Shark {conf:.2f}"
+                (text_w, text_h), _ = cv2.getTextSize(custom_label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                cv2.rectangle(frame, (box[0], box[1] - text_h - 10), (box[0] + text_w + 10, box[1]), (255, 0, 0), -1)
+                cv2.putText(frame, custom_label, (box[0] + 5, box[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
         
         # Display the live prediction snapshot to the user interface
-        st.image(cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB), caption="AI Inference Evaluation Output", use_container_width=True)
+        st.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), caption="AI Inference Evaluation Output", use_container_width=True)
         st.success(f"Detections complete! Total spotted in image: {len(results[0].boxes)}")
 
 # 4. Handle Live VIDEO Testing Pipeline
@@ -75,18 +84,34 @@ elif source_type == "Video File":
             
             sharks_in_this_frame = 0
             if results[0].boxes.id is not None:
+                # Extracted tracking metrics directly from the model object tensors
+                boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
                 ids = results[0].boxes.id.cpu().numpy().astype(int)
+                confidences = results[0].boxes.conf.cpu().numpy()
+                
                 sharks_in_this_frame = len(ids)
                 
-                # Draw boxes natively
-                frame = results[0].plot()
-                
+                # HIJACK LAYER: Loop through each detection to override the label strings manually
+                for box, obj_id, conf in zip(boxes, ids, confidences):
+                    # Draw neon bounding box frame
+                    cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), (255, 0, 0), 2)
+                    
+                    # RENAME STRING: Overwrote 'elasmobranch' with your precise asset designation
+                    custom_label = f"id:{obj_id} Blacktip Reef Shark {conf:.2f}"
+                    
+                    # Draw a solid text background banner so reflection/bubbles don't make it unreadable
+                    (text_w, text_h), _ = cv2.getTextSize(custom_label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                    cv2.rectangle(frame, (box[0], box[1] - text_h - 10), (box[0] + text_w + 10, box[1]), (255, 0, 0), -1)
+                    
+                    # Print custom white metadata text onto the solid block background
+                    cv2.putText(frame, custom_label, (box[0] + 5, box[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                    
             if sharks_in_this_frame > maxn_value:
                 maxn_value = sharks_in_this_frame
                 
-            # Overlay UI text tracks onto array output frame block before display
-            cv2.putText(frame, f'Active Counter: {sharks_in_this_frame}', (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 2.0, (255, 255, 0), 3)
-            cv2.putText(frame, f'Peak MaxN: {maxn_value}', (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 0, 255), 3)
+            # BOLD TELEMETRY: Large, bold counters offset safely from the screen margins
+            cv2.putText(frame, f'Active Counter: {sharks_in_this_frame}', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 0), 3)
+            cv2.putText(frame, f'Peak MaxN: {maxn_value}', (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
             
             # Keep sending the fresh processed frame array right to your web layout
             frame_placeholder.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
