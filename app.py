@@ -4,9 +4,10 @@ import numpy as np
 from ultralytics import YOLO
 import tempfile
 import os
+import av
 
 st.set_page_config(page_title="Shark Abundance Live Portal", layout="centered")
-st.title("Shark Abundance Live Testing Portal")
+st.title("🦈 Shark Abundance Live Testing Portal")
 st.write("Upload an image or a video clip to evaluate the YOLO11 + ByteTrack pipeline smoothly.")
 
 @st.cache_resource
@@ -22,7 +23,7 @@ except Exception as e:
 source_type = st.sidebar.radio("Select Input Source Media Type:", ("Image File", "Video File"))
 conf_threshold = st.sidebar.slider("Confidence Threshold:", min_value=0.0, max_value=1.0, value=0.20, step=0.05)
 
-# --- IMAGE HANDLER (STAYS THE SAME) ---
+# --- IMAGE HANDLER ---
 if source_type == "Image File":
     uploaded_image = st.file_uploader("Choose a shark image asset...", type=["jpg", "jpeg", "png"])
     if uploaded_image is not None:
@@ -33,31 +34,32 @@ if source_type == "Image File":
         st.image(cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB), caption="AI Inference Evaluation Output", use_container_width=True)
         st.success(f"Detections complete! Total spotted in image: {len(results[0].boxes)}")
 
-# --- VIDEO HANDLER (SMOOTH BUFFERED PLAYBACK OPTIMIZATION) ---
-
+# --- VIDEO HANDLER (SMOOTH PLAYBACK RESOLVED VIA PYAV H264) ---
 elif source_type == "Video File":
     uploaded_video = st.file_uploader("Choose a video file tracking target...", type=["mp4", "avi", "mov", "webm"])
     
     if uploaded_video is not None:
-        # 1. Setup secure temp paths for input and processing outputs
+        # Create temporary paths for files
         tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
         tfile.write(uploaded_video.read())
         tfile.close()
         
-        # FIXED: Using .avi container format to bypass server-side codec limits
-        output_path = os.path.join(tempfile.gettempdir(), "processed_output.avi")
+        output_path = os.path.join(tempfile.gettempdir(), "final_tracked_h264.mp4")
         
         cap = cv2.VideoCapture(tfile.name)
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS)
-        fps = fps if fps > 0 else 30
+        fps = int(fps) if fps > 0 else 30
         
-        # FIXED: Using XVID with an .avi wrapper provides universal web compatibility inside Streamlit's data component
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+        # OPEN WEB-SAFE H264 CONTAINER VIA PYAV
+        container = av.open(output_path, mode='w', format='mp4')
+        stream = container.add_stream('libx264', rate=fps)
+        stream.width = frame_width
+        stream.height = frame_height
+        stream.pix_fmt = 'yuv420p' # Standard format pixel layout required by Google Chrome
         
-        # 2. Display a nice loading spinner while the AI processes frames in the background
+        # Display a nice loading spinner while the AI processes frames
         with st.spinner("🧠 AI Tracking Engine running background inference... Please wait a moment."):
             progress_bar = st.progress(0)
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -87,24 +89,31 @@ elif source_type == "Video File":
                 cv2.putText(frame, f'Active Counter: {sharks_in_this_frame}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
                 cv2.putText(frame, f'Peak MaxN: {maxn_value}', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
                 
-                out.write(frame)
+                # Convert the OpenCV BGR frame array to RGB and write as an encoded web frame block
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                av_frame = av.VideoFrame.from_ndarray(rgb_frame, format='rgb24')
                 
-                # Update progress bar metrics securely
+                for packet in stream.encode(av_frame):
+                    container.mux(packet)
+                
                 if total_frames > 0:
                     progress_bar.progress(min(current_frame / total_frames, 1.0))
             
-            cap.release()
-            out.release()
+            # Flush out any leftover encoder packets to cleanly shut down the file container
+            for packet in stream.encode():
+                container.mux(packet)
             
-        # 3. Stream natively using Streamlit's web player engine container
+            cap.release()
+            container.close()
+            
         st.success(f"🎬 Analysis complete! Overall Peak Video MaxN Score: {maxn_value}")
         
-        # FIXED: Pass explicitly as a generic video binary stream block to force Chrome compatibility
+        # Read the verified H264 binary video block straight into the media element
         with open(output_path, 'rb') as video_file:
             video_bytes = video_file.read()
-            st.video(video_bytes, format="video/avi")
+            st.video(video_bytes, format="video/mp4")
             
-        # Clean up backend file memory allocations safely
+        # Clean up backend temp files safely
         try:
             os.remove(tfile.name)
             os.remove(output_path)
