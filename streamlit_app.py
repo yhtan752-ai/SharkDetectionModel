@@ -20,7 +20,7 @@ if uploaded_file is not None:
                 files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
                 
                 # Send HTTP POST request containing video bytes across network to server
-                response = requests.post(GPU_SERVER_URL, files=files, timeout=(15, 300))
+                response = requests.post(GPU_SERVER_URL, files=files, timeout=(30, 600))
                 
                 if response.status_code == 200:
                     st.success("GPU Processing Complete!")
