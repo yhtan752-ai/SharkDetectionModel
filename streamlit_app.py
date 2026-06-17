@@ -3,7 +3,7 @@ import requests
 
 # Point this to your lecturer's GPU server public IP address
 # Inside your local streamlit_app.py or your deployed file:
-GPU_SERVER_URL = "https://thick-sides-bow.loca.lt/process-video/"
+GPU_SERVER_URL = "https://biaxc-116-88-71-117.run.pinggy-free.link/process-video/"
 
 st.title("🦈 Automated Real-Time Shark Detection & Counter")
 st.write("Upload a video stream below. Processing is offloaded to a high-performance external GPU cluster.")
