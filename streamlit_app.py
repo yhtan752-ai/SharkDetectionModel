@@ -1,35 +1,63 @@
 import streamlit as st
 import requests
+import cv2
+import tempfile
+import numpy as np
 
-# Point this to your lecturer's GPU server public IP address
-# Inside your local streamlit_app.py or your deployed file:
-GPU_SERVER_URL = "https://biaxc-116-88-71-117.run.pinggy-free.link/process-video/"
+st.title("Shark Tracking System")
 
-st.title("🦈 Automated Real-Time Shark Detection & Counter")
-st.write("Upload a video stream below. Processing is offloaded to a high-performance external GPU cluster.")
+# 1. Update this to your active HTTPS Pinggy link
+# Note the endpoint changed from /process-video/ to /process-frame/
+FRAME_API_URL = "https://qkrez-2406-3003-2000-7027-10bb-b113-617a-a5cb.run.pinggy-free.link/process-frame/"
 
-uploaded_file = st.file_uploader("Choose a video file...", type=["mp4", "avi", "mov"])
+uploaded_file = st.file_uploader("Upload Shark Footage", type=["mp4", "avi", "mov"])
 
 if uploaded_file is not None:
-    st.video(uploaded_file) # Preview original file
+    st.success("Video received successfully! Commencing streaming frame tracking...")
     
-    if st.button("Run Analytics Engine"):
-        with st.spinner("Offloading video tensor batches to GPU server... Please wait."):
-            try:
-                # Prepare file payload payload
-                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+    # Save uploaded file bytes to a temporary local cache file to read via OpenCV
+    tfile = tempfile.NamedTemporaryFile(delete=False)
+    tfile.write(uploaded_file.read())
+    
+    cap = cv2.VideoCapture(tfile.name)
+    
+    # Create an empty placeholder container on the Streamlit screen to update the frames live
+    frame_placeholder = st.empty()
+    
+    # Process and stream the video frame-by-frame
+    while cap.isOpened():
+        success, frame = cap.read()
+        if not success:
+            break
+            
+        # Encode individual frame array into JPEG bytes
+        _, img_encoded = cv2.imencode('.jpg', frame)
+        img_bytes = img_encoded.tobytes()
+        
+        try:
+            # Send the tiny, lightweight frame down the tunnel
+            response = requests.post(
+                FRAME_API_URL, 
+                files={"file": ("frame.jpg", img_bytes, "image/jpeg")}, 
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                # Reconstruct the annotated tracking image returned by the server
+                nparr = np.frombuffer(response.content, np.uint8)
+                annotated_frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                # Convert BGR back to standard RGB for Streamlit rendering
+                annotated_frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
                 
-                # Send HTTP POST request containing video bytes across network to server
-                response = requests.post(GPU_SERVER_URL, files=files, timeout=(30, 600))
+                # Update the display layout with the tracked bounding boxes live!
+                frame_placeholder.image(annotated_frame_rgb, channels="RGB", use_column_width=True)
+            else:
+                st.error(f"Backend frame syncing issue: Status {response.status_code}")
+                break
                 
-                if response.status_code == 200:
-                    st.success("GPU Processing Complete!")
-                    # Display the final returned tracking video seamlessly
-                    st.video(response.content)
-                else:
-                    st.error(f"Server Error: Received Status Code {response.status_code}")
-                    
-            except requests.exceptions.Timeout:
-                st.error("The processing request timed out. The video file might be too large.")
-            except requests.exceptions.ConnectionError:
-                st.error("Could not establish a connection to the remote GPU Server. Ensure the server API is active.")
+        except Exception as e:
+            st.error(f"Network processing interruption: {str(e)}")
+            break
+            
+    cap.release()
+    st.balloons()
