@@ -5,7 +5,7 @@ st.title("High-Speed Shark Tracking System (GPU Accelerated)")
 
 # Update this to your active HTTPS Pinggy link
 # Note the endpoint changes back to /process-video/
-GPU_SERVER_URL = "https://qkrez-2406-3003-2000-7027-10bb-b113-617a-a5cb.run.pinggy-free.link/process-video/"
+GPU_SERVER_URL =  "https://hzrlu-2406-3003-2000-7027-10bb-b113-617a-a5cb.run.pinggy-free.link/process-video/"
 
 uploaded_file = st.file_uploader("Upload Shark Footage", type=["mp4", "avi", "mov"])
 
